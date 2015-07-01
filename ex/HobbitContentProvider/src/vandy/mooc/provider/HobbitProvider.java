@@ -6,7 +6,10 @@ import android.database.Cursor;
 import android.net.Uri;
 
 /**
- * Content Provider used to store information about Hobbit characters.
+ * Content Provider interface used to manage Hobbit characters.  This
+ * class plays the role of the "Abstraction" in the Bridge pattern.
+ * It and the hierarchy it abstracts play the role of the "Model" in
+ * the Model-View-Presenter pattern.
  */
 public class HobbitProvider extends ContentProvider {
     /**
@@ -15,20 +18,33 @@ public class HobbitProvider extends ContentProvider {
     protected final static String TAG =
         HobbitProvider.class.getSimpleName();
 
+    /**
+     * Different concrete implementations supported by the Hobbit
+     * ContentProvider.
+     */
     public enum ContentProviderType {
         HASH_MAP,
         SQLITE
     }
 
+    /**
+     * Stores the concrete implementation used by the Hobbit
+     * ContentProvider.
+     */
     private ContentProviderType mContentProviderType =
-        ContentProviderType.HASH_MAP;
+        ContentProviderType.SQLITE;
+    // ContentProviderType.HASH_MAP;
 
+    /**
+     * Implementation of the HobbitProvider, which is either
+     * HobbitProviderHashMap or HobbiProviderSQLite.
+     */
     private HobbitProviderImpl mImpl;
 
     /**
      * Method called to handle type requests from client applications.
-     * It returns the MIME type of the data associated with each URI.
-     */
+     * It returns the MIME type of the data associated with each
+     * URI.  */
     @Override
     public String getType(Uri uri) {
         return mImpl.getType(uri);
@@ -103,13 +119,14 @@ public class HobbitProvider extends ContentProvider {
      */
     @Override
     public boolean onCreate() {
+        // Select the concrete implementor.
         switch(mContentProviderType) {
         case HASH_MAP:
             mImpl =
                 new HobbitProviderHashMap(getContext());
             break;
         case SQLITE:
-            mImpl = null;
+            mImpl = new HobbitProviderSQLite(getContext());
             break;
         }
 

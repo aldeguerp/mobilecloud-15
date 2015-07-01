@@ -4,12 +4,16 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
-import android.database.MatrixCursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.text.TextUtils;
 import android.net.Uri;
+import android.util.Log;
 
 /**
- * Content Provider used to store information about Hobbit characters.
+ * Content Provider implementation that uses SQLite to manage Hobbit
+ * characters.  This class plays the role of the "Concrete
+ * Implementor" in the Bridge pattern and the "Concrete Class" in the
+ * TemplateMethod pattern.
  */
 public class HobbitProviderSQLite extends HobbitProviderImpl  {
     /**
@@ -29,6 +33,7 @@ public class HobbitProviderSQLite extends HobbitProviderImpl  {
      * Return true if successfully started.
      */
     public boolean onCreate() {
+        // Create the HobbitDatabaseHelper.
         mOpenHelper =
             new HobbitDatabaseHelper(mContext);
         return true;
@@ -36,7 +41,8 @@ public class HobbitProviderSQLite extends HobbitProviderImpl  {
 
     /**
      * Method called to handle insert requests from client
-     * applications.
+     * applications.  This plays the role of the "concrete hook
+     * method" in the Template Method pattern.
      */
     @Override
     public Uri insertCharacters(Uri uri,
@@ -59,7 +65,8 @@ public class HobbitProviderSQLite extends HobbitProviderImpl  {
     }
 
     /**
-     * Method that handles bulk insert requests.
+     * Method that handles bulk insert requests.  This plays the role
+     * of the "concrete hook method" in the Template Method pattern.
      */
     @Override
     public int bulkInsertCharacters(Uri uri,
@@ -73,30 +80,31 @@ public class HobbitProviderSQLite extends HobbitProviderImpl  {
 
         int returnCount = 0;
 
-            // Begins a transaction in EXCLUSIVE mode. 
-            db.beginTransaction();
-            try {
-                for (ContentValues cvs : cvsArray) {
-                    final long id =
-                        db.insert(CharacterContract.CharacterEntry.TABLE_NAME,
-                                  null,
-                                  cvs);
-                    if (id != -1)
-                        returnCount++;
-                }
-                // Marks the current transaction as successful.
-                db.setTransactionSuccessful();
-            } finally {
-                // End a transaction.
-                db.endTransaction();
+        // Begins a transaction in EXCLUSIVE mode. 
+        db.beginTransaction();
+        try {
+            for (ContentValues cvs : cvsArray) {
+                final long id =
+                    db.insert(CharacterContract.CharacterEntry.TABLE_NAME,
+                              null,
+                              cvs);
+                if (id != -1)
+                    returnCount++;
             }
+
+            // Marks the current transaction as successful.
+            db.setTransactionSuccessful();
+        } finally {
+            // End a transaction.
+            db.endTransaction();
+        }
         return returnCount;
-        // return super.bulkInsert(uri, cvsArray);
     }
 
     /**
      * Method called to handle query requests from client
-     * applications.
+     * applications.  This plays the role of the "concrete hook
+     * method" in the Template Method pattern.
      */
     @Override
     public Cursor queryCharacters(Uri uri,
@@ -104,15 +112,24 @@ public class HobbitProviderSQLite extends HobbitProviderImpl  {
                                   String selection,
                                   String[] selectionArgs,
                                   String sortOrder) {
-        final MatrixCursor cursor =
-            new MatrixCursor(sCOLUMNS);
-
-        return cursor;
+        // Expand the selection if necessary.
+        selection = addSelectionArgs(selection, 
+                                     selectionArgs,
+                                     "OR");
+        return mOpenHelper.getReadableDatabase().query
+            (CharacterContract.CharacterEntry.TABLE_NAME,
+             projection,
+             selection,
+             selectionArgs,
+             null,
+             null,
+             sortOrder);
     }
 
     /**
      * Method called to handle query requests from client
-     * applications.
+     * applications.  This plays the role of the "concrete hook
+     * method" in the Template Method pattern.
      */
     @Override
     public Cursor queryCharacter(Uri uri,
@@ -120,67 +137,162 @@ public class HobbitProviderSQLite extends HobbitProviderImpl  {
                                  String selection,
                                  String[] selectionArgs,
                                  String sortOrder) {
-        final MatrixCursor cursor =
-            new MatrixCursor(sCOLUMNS);
-
-        // Just return a single item from the database.
-        long requestId = ContentUris.parseId(uri);
-
-        return cursor;
-        // throw new UnsupportedOperationException("Unknown uri: " + uri);
+        // Query the SQLite database for the particular rowId based on
+        // (a subset of) the parameters passed into the method.
+        return mOpenHelper.getReadableDatabase().query
+            (CharacterContract.CharacterEntry.TABLE_NAME,
+             projection,
+             addKeyIdCheckToWhereStatement(selection,
+                                           ContentUris.parseId(uri)),
+             selectionArgs,
+             null,
+             null,
+             sortOrder);
     }
 
     /**
      * Method called to handle update requests from client
-     * applications.
+     * applications.  This plays the role of the "concrete hook
+     * method" in the Template Method pattern.
      */
     @Override
     public int updateCharacters(Uri uri,
                                 ContentValues cvs,
                                 String selection,
                                 String[] selectionArgs) {
-        int recsUpdated = 0;
-
-        return recsUpdated;
+        // Expand the selection if necessary.
+        selection = addSelectionArgs(selection, 
+                                     selectionArgs,
+                                     " OR ");
+        return mOpenHelper.getWritableDatabase().update
+            (CharacterContract.CharacterEntry.TABLE_NAME,
+             cvs,
+             selection,
+             selectionArgs);
     }
 
     /**
      * Method called to handle update requests from client
-     * applications.
+     * applications.  This plays the role of the "concrete hook
+     * method" in the Template Method pattern.
      */
     @Override
     public int updateCharacter(Uri uri,
                                ContentValues cvs,
                                String selection,
                                String[] selectionArgs) {
-        // Just update a single item in the database.
-        final long requestId = ContentUris.parseId(uri);
-        return 0;
+        // Expand the selection if necessary.
+        selection = addSelectionArgs(selection,
+                                     selectionArgs,
+                                     " OR ");
+        // Just update a single row in the database.
+        return mOpenHelper.getWritableDatabase().update
+            (CharacterContract.CharacterEntry.TABLE_NAME,
+             cvs,
+             addKeyIdCheckToWhereStatement(selection,
+                                           ContentUris.parseId(uri)),
+             selectionArgs);
     }
 
     /**
      * Method called to handle delete requests from client
-     * applications.
+     * applications.  This plays the role of the "concrete hook
+     * method" in the Template Method pattern.
      */
     @Override
     public int deleteCharacters(Uri uri,
                                 String selection,
                                 String[] selectionArgs) {
-        int recsDeleted = 0;
-        
-        return recsDeleted;
+        // Expand the selection if necessary.
+        selection = addSelectionArgs(selection, 
+                                     selectionArgs,
+                                     " OR ");
+        return mOpenHelper.getWritableDatabase().delete
+            (CharacterContract.CharacterEntry.TABLE_NAME,
+             selection,
+             selectionArgs);
     }
 
     /**
      * Method called to handle delete requests from client
-     * applications.
+     * applications.  This plays the role of the "concrete hook
+     * method" in the Template Method pattern.
      */
     @Override
     public int deleteCharacter(Uri uri,
                                String selection,
                                String[] selectionArgs) {
-        // Just delete a single item in the database.
-        final long requestId = ContentUris.parseId(uri);
-        return 0;
+        // Expand the selection if necessary.
+        selection = addSelectionArgs(selection, 
+                                     selectionArgs,
+                                     " OR ");
+        // Just delete a single row in the database.
+        return mOpenHelper.getWritableDatabase().delete
+            (CharacterContract.CharacterEntry.TABLE_NAME,
+             addKeyIdCheckToWhereStatement(selection,
+                                           ContentUris.parseId(uri)),
+             selectionArgs);
+    }
+
+    /**
+     * Return a selection string that concatenates all the
+     * @a selectionArgs for a given @a selection using the given @a
+     * operation.
+     */
+    private String addSelectionArgs(String selection,
+                                    String [] selectionArgs,
+                                    String operation) {
+        // Handle the "null" case.
+        if (selection == null
+            || selectionArgs == null)
+            return null;
+        else {
+            String selectionResult = "";
+
+            // Properly add the selection args to the selectionResult.
+            for (int i = 0;
+                 i < selectionArgs.length - 1;
+                 ++i)
+                selectionResult += (selection 
+                           + " = ? " 
+                           + operation 
+                           + " ");
+            
+            // Handle the final selection case.
+            selectionResult += (selection
+                       + " = ?");
+
+            // Output the selectionResults to Logcat.
+            Log.d(TAG,
+                  "selection = "
+                  + selectionResult
+                  + " selectionArgs = ");
+            for (String args : selectionArgs)
+                Log.d(TAG,
+                      args
+                      + " ");
+
+            return selectionResult;
+        }
+    }        
+
+    /**
+     * Helper method that appends a given key id to the end of the
+     * WHERE statement parameter.
+     */
+    private static String addKeyIdCheckToWhereStatement(String whereStatement,
+                                                        long id) {
+        String newWhereStatement;
+        if (TextUtils.isEmpty(whereStatement)) 
+            newWhereStatement = "";
+        else 
+            newWhereStatement = whereStatement + " AND ";
+
+        // Append the key id to the end of the WHERE statement.
+        return newWhereStatement 
+            + CharacterContract.CharacterEntry._ID
+            + " = '"
+            + id 
+            + "'";
     }
 }
